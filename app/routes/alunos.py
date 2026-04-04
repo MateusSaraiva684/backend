@@ -5,12 +5,11 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from app.core.security import require_admin
-from app.models.usuario import Usuario
 
 from app.database.session import get_db
 from app.models.models import Aluno, Usuario
 from app.schemas.schemas import AlunoResponse
-from app.routes.auth import get_current_user
+from app.core.security import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
