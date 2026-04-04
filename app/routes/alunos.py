@@ -35,11 +35,11 @@ def salvar_foto(foto: UploadFile) -> str | None:
     return f"/uploads/alunos/{filename}"
 
 
-@router.get("/", response_model=List[AlunoResponse])
+@router.get("", response_model=List[AlunoResponse])
 def listar(user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(Aluno).filter(Aluno.user_id == user.id).order_by(Aluno.id.desc()).all()
 
-@router.get("/admin/usuarios")
+@router.get("/admin/usuarios/")
 def listar_usuarios(
     db: Session = Depends(get_db),
     admin=Depends(require_admin)
