@@ -4,12 +4,11 @@ import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from app.core.security import require_admin
 
 from app.database.session import get_db
 from app.models.models import Aluno, Usuario
 from app.schemas.schemas import AlunoResponse
-from app.core.security import get_current_user
+from app.routes.auth import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -35,16 +34,21 @@ def salvar_foto(foto: UploadFile) -> str | None:
     return f"/uploads/alunos/{filename}"
 
 
-@router.get("", response_model=List[AlunoResponse])
+def require_admin(user: Usuario = Depends(get_current_user)):
+    if not getattr(user, 'is_admin', False):
+        raise HTTPException(status_code=403, detail="Acesso permitido apenas para administradores")
+    return user
+
+
+@router.get("/", response_model=List[AlunoResponse])
 def listar(user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(Aluno).filter(Aluno.user_id == user.id).order_by(Aluno.id.desc()).all()
 
+
 @router.get("/admin/usuarios/")
-def listar_usuarios(
-    db: Session = Depends(get_db),
-    admin=Depends(require_admin)
-):
+def listar_usuarios(db: Session = Depends(get_db), admin: Usuario = Depends(require_admin)):
     return db.query(Usuario).all()
+
 
 @router.post("/", response_model=AlunoResponse, status_code=201)
 def criar(
@@ -102,5 +106,3 @@ def deletar(aluno_id: int, user: Usuario = Depends(get_current_user), db: Sessio
     db.delete(aluno)
     db.commit()
     logger.info("Aluno deletado: id=%d por usuário id=%d", aluno_id, user.id)
-
-    
