@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+
 
 echo "==> Instalando dependências..."
 pip install -r requirements.txt --quiet
