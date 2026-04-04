@@ -4,8 +4,11 @@ from datetime import datetime, timedelta, timezone
 from jose import jwt
 from app.core.config import settings
 from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 def hash_senha(senha: str) -> str:
@@ -35,6 +38,13 @@ def decodificar_access_token(token: str) -> dict:
     if payload.get("type") != "access":
         raise JWTError("Tipo de token inválido")
     return payload
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    payload = decodificar_access_token(token)
+    user_id = payload.get("sub")
+    # TODO: Buscar usuário no banco de dados
+    return {"id": user_id, "is_admin": False}
+
 
 def require_admin(user=Depends(get_current_user)):
     if not user.is_admin:
