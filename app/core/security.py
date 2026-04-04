@@ -34,3 +34,11 @@ def decodificar_access_token(token: str) -> dict:
     if payload.get("type") != "access":
         raise JWTError("Tipo de token inválido")
     return payload
+
+def require_admin(user=Depends(get_current_user)):
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso permitido apenas para administradores"
+        )
+    return user
