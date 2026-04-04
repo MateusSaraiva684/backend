@@ -12,6 +12,7 @@ from app.core.logging_config import configurar_logging
 from app.database.session import Base, engine
 from app.middleware.logging import request_logging_middleware
 from app.routes import alunos, auth
+from app.routes import admin  # ← novo
 
 configurar_logging()
 logger = logging.getLogger(__name__)
@@ -22,8 +23,6 @@ app = FastAPI(
     docs_url="/docs" if not settings.is_production else None,
     redoc_url=None,
 )
-
-# ── CORS ──────────────────────────────────────────────────────────────────────
 
 origins = ["http://localhost:5173", "http://localhost:3000"]
 if settings.FRONTEND_URL:
@@ -39,22 +38,17 @@ app.add_middleware(
 
 app.middleware("http")(request_logging_middleware)
 
-# ── Rotas ─────────────────────────────────────────────────────────────────────
-
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(alunos.router, prefix="/api/alunos", tags=["Alunos"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])  # ← novo
 
 os.makedirs("uploads/alunos", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-# ── Tratamento global de erros ────────────────────────────────────────────────
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"erro": exc.detail},
-    )
+    return JSONResponse(status_code=exc.status_code, content={"erro": exc.detail})
 
 
 @app.exception_handler(RequestValidationError)
@@ -69,12 +63,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     logger.exception("Erro inesperado em %s %s", request.method, request.url.path)
-    return JSONResponse(
-        status_code=500,
-        content={"erro": "Erro interno do servidor"},
-    )
+    return JSONResponse(status_code=500, content={"erro": "Erro interno do servidor"})
 
-# ── Startup ───────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
 def startup():
