@@ -1,27 +1,25 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
 from typing import Optional
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.core.security import hash_senha
 from app.database.session import get_db
 from app.models.models import Usuario, Aluno
 from app.routes.auth import get_current_user
-from app.core.security import hash_senha
+from app.services.media import deletar_foto_cloudinary
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-
-# ── Dependência: apenas superusuários ────────────────────────────────────────
 
 def get_superuser(user: Usuario = Depends(get_current_user)) -> Usuario:
     if not user.is_superuser:
         raise HTTPException(status_code=403, detail="Acesso restrito a administradores")
     return user
 
-
-# ── Estatísticas ──────────────────────────────────────────────────────────────
 
 @router.get("/stats")
 def estatisticas(
@@ -38,8 +36,6 @@ def estatisticas(
         "total_alunos": total_alunos,
     }
 
-
-# ── Usuários ──────────────────────────────────────────────────────────────────
 
 @router.get("/usuarios")
 def listar_usuarios(
@@ -76,9 +72,9 @@ def atualizar_usuario(
 ):
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(status_code=404, detail="Usuario nao encontrado")
     if usuario.is_superuser and usuario.id != admin.id:
-        raise HTTPException(status_code=403, detail="Não é possível editar outro superusuário")
+        raise HTTPException(status_code=403, detail="Nao e possivel editar outro superusuario")
     if body.nome is not None:
         usuario.nome = body.nome
     if body.email is not None:
@@ -86,12 +82,12 @@ def atualizar_usuario(
             Usuario.email == body.email, Usuario.id != usuario_id
         ).first()
         if existente:
-            raise HTTPException(status_code=400, detail="E-mail já está em uso")
+            raise HTTPException(status_code=400, detail="E-mail ja esta em uso")
         usuario.email = body.email
     if body.ativo is not None:
         usuario.ativo = body.ativo
     db.commit()
-    logger.info("Usuário id=%d atualizado pelo admin id=%d", usuario_id, admin.id)
+    logger.info("Usuario id=%d atualizado pelo admin id=%d", usuario_id, admin.id)
     return {"id": usuario.id, "nome": usuario.nome, "email": usuario.email, "ativo": usuario.ativo}
 
 
@@ -107,15 +103,15 @@ def redefinir_senha(
     admin: Usuario = Depends(get_superuser),
 ):
     if len(body.nova_senha) < 6:
-        raise HTTPException(status_code=400, detail="Senha deve ter no mínimo 6 caracteres")
+        raise HTTPException(status_code=400, detail="Senha deve ter no minimo 6 caracteres")
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(status_code=404, detail="Usuario nao encontrado")
     if usuario.is_superuser and usuario.id != admin.id:
-        raise HTTPException(status_code=403, detail="Não é possível redefinir senha de outro superusuário")
+        raise HTTPException(status_code=403, detail="Nao e possivel redefinir senha de outro superusuario")
     usuario.senha = hash_senha(body.nova_senha)
     db.commit()
-    logger.info("Senha do usuário id=%d redefinida pelo admin id=%d", usuario_id, admin.id)
+    logger.info("Senha do usuario id=%d redefinida pelo admin id=%d", usuario_id, admin.id)
     return {"mensagem": "Senha redefinida com sucesso"}
 
 
@@ -127,14 +123,14 @@ def toggle_usuario_ativo(
 ):
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(status_code=404, detail="Usuario nao encontrado")
     if usuario.is_superuser:
-        raise HTTPException(status_code=403, detail="Não é possível desativar um superusuário")
+        raise HTTPException(status_code=403, detail="Nao e possivel desativar um superusuario")
     usuario.ativo = not usuario.ativo
     db.commit()
     status_str = "ativado" if usuario.ativo else "desativado"
-    logger.info("Usuário id=%d %s pelo admin id=%d", usuario_id, status_str, admin.id)
-    return {"id": usuario.id, "ativo": usuario.ativo, "mensagem": f"Usuário {status_str}"}
+    logger.info("Usuario id=%d %s pelo admin id=%d", usuario_id, status_str, admin.id)
+    return {"id": usuario.id, "ativo": usuario.ativo, "mensagem": f"Usuario {status_str}"}
 
 
 @router.delete("/usuarios/{usuario_id}")
@@ -145,16 +141,19 @@ def deletar_usuario(
 ):
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(status_code=404, detail="Usuario nao encontrado")
     if usuario.is_superuser:
-        raise HTTPException(status_code=403, detail="Não é possível remover um superusuário")
+        raise HTTPException(status_code=403, detail="Nao e possivel remover um superusuario")
+
+    alunos_do_usuario = db.query(Aluno).filter(Aluno.user_id == usuario_id).all()
+    for aluno in alunos_do_usuario:
+        deletar_foto_cloudinary(aluno.foto)
+
     db.delete(usuario)
     db.commit()
-    logger.info("Usuário id=%d deletado pelo admin id=%d", usuario_id, admin.id)
-    return {"mensagem": "Usuário removido com sucesso"}
+    logger.info("Usuario id=%d deletado pelo admin id=%d", usuario_id, admin.id)
+    return {"mensagem": "Usuario removido com sucesso"}
 
-
-# ── Alunos (todos) ────────────────────────────────────────────────────────────
 
 @router.get("/alunos")
 def listar_todos_alunos(
@@ -190,7 +189,9 @@ def deletar_aluno(
 ):
     aluno = db.query(Aluno).filter(Aluno.id == aluno_id).first()
     if not aluno:
-        raise HTTPException(status_code=404, detail="Aluno não encontrado")
+        raise HTTPException(status_code=404, detail="Aluno nao encontrado")
+
+    deletar_foto_cloudinary(aluno.foto)
     db.delete(aluno)
     db.commit()
     logger.info("Aluno id=%d deletado pelo admin id=%d", aluno_id, admin.id)

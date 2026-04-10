@@ -46,7 +46,10 @@ class RefreshToken(Base):
 
     @property
     def expirado(self) -> bool:
-        return datetime.now(timezone.utc) > self.expira_em
+        expira_em = self.expira_em
+        if expira_em.tzinfo is None:
+            expira_em = expira_em.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) > expira_em
 
     @property
     def valido(self) -> bool:
