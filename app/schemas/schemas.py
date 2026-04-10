@@ -38,6 +38,7 @@ class UsuarioResponse(BaseModel):
     id: int
     nome: str
     email: str
+    is_superuser: bool
     criado_em: datetime
 
     class Config:

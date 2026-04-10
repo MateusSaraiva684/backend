@@ -75,3 +75,25 @@ def startup():
 @app.get("/api/health")
 def health():
     return {"status": "ok", "version": "2.0.0"}
+
+
+# Sobrescreve o startup anterior
+@app.on_event("startup")
+def _promote_admin():
+    """Promove ADMIN_EMAIL a superusuário automaticamente."""
+    if not settings.ADMIN_EMAIL:
+        return
+    from sqlalchemy.orm import Session as DBSession
+    from app.database.session import SessionLocal
+    from app.models.models import Usuario as UsuarioModel
+    db: DBSession = SessionLocal()
+    try:
+        admin = db.query(UsuarioModel).filter(
+            UsuarioModel.email == settings.ADMIN_EMAIL
+        ).first()
+        if admin and not admin.is_superuser:
+            admin.is_superuser = True
+            db.commit()
+            logger.info("Usuário '%s' promovido a superusuário", settings.ADMIN_EMAIL)
+    finally:
+        db.close()

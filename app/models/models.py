@@ -12,6 +12,7 @@ class Usuario(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     senha = Column(String, nullable=False)
     ativo = Column(Boolean, default=True, nullable=False)
+    is_superuser = Column(Boolean, default=False, nullable=False)
     criado_em = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     alunos = relationship("Aluno", back_populates="usuario", cascade="all, delete-orphan")
