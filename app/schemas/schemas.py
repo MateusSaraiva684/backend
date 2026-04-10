@@ -49,15 +49,18 @@ class UsuarioResponse(BaseModel):
 
 class AlunoCreate(BaseModel):
     nome: str
+    numero_inscricao: str
     telefone: str
 
 class AlunoUpdate(BaseModel):
     nome: str
+    numero_inscricao: str
     telefone: str
 
 class AlunoResponse(BaseModel):
     id: int
     nome: str
+    numero_inscricao: str
     telefone: str
     foto: Optional[str] = None
     criado_em: datetime

@@ -170,6 +170,7 @@ def listar_todos_alunos(
         {
             "id": a.Aluno.id,
             "nome": a.Aluno.nome,
+            "numero_inscricao": a.Aluno.numero_inscricao,
             "telefone": a.Aluno.telefone,
             "foto": a.Aluno.foto,
             "criado_em": a.Aluno.criado_em,

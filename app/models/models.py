@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database.session import Base
 
@@ -21,9 +21,13 @@ class Usuario(Base):
 
 class Aluno(Base):
     __tablename__ = "alunos"
+    __table_args__ = (
+        UniqueConstraint("user_id", "numero_inscricao", name="uq_alunos_user_numero_inscricao"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String, nullable=False)
+    numero_inscricao = Column(String, nullable=False)
     telefone = Column(String, nullable=False)
     foto = Column(String, nullable=True)
     criado_em = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
