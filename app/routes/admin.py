@@ -7,6 +7,7 @@ from typing import Optional
 from app.database.session import get_db
 from app.models.models import Usuario, Aluno
 from app.routes.auth import get_current_user
+from app.core.security import hash_senha
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -92,6 +93,30 @@ def atualizar_usuario(
     db.commit()
     logger.info("Usuário id=%d atualizado pelo admin id=%d", usuario_id, admin.id)
     return {"id": usuario.id, "nome": usuario.nome, "email": usuario.email, "ativo": usuario.ativo}
+
+
+class RedefinirSenhaRequest(BaseModel):
+    nova_senha: str
+
+
+@router.patch("/usuarios/{usuario_id}/senha")
+def redefinir_senha(
+    usuario_id: int,
+    body: RedefinirSenhaRequest,
+    db: Session = Depends(get_db),
+    admin: Usuario = Depends(get_superuser),
+):
+    if len(body.nova_senha) < 6:
+        raise HTTPException(status_code=400, detail="Senha deve ter no mínimo 6 caracteres")
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    if usuario.is_superuser and usuario.id != admin.id:
+        raise HTTPException(status_code=403, detail="Não é possível redefinir senha de outro superusuário")
+    usuario.senha = hash_senha(body.nova_senha)
+    db.commit()
+    logger.info("Senha do usuário id=%d redefinida pelo admin id=%d", usuario_id, admin.id)
+    return {"mensagem": "Senha redefinida com sucesso"}
 
 
 @router.patch("/usuarios/{usuario_id}/ativo")
