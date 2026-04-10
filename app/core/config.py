@@ -18,6 +18,11 @@ class Settings:
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
     ADMIN_SECRET_KEY: str = os.getenv("ADMIN_SECRET_KEY", "")  # chave separada para tokens admin
 
+    # Cloudinary — armazenamento de fotos
+    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "")
+    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "")
+
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
