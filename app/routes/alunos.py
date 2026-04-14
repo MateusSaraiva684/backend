@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
@@ -40,9 +40,35 @@ def _garantir_numero_inscricao_disponivel(
         )
 
 
+@router.get("/turmas", response_model=List[str])
+def listar_turmas(user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Retorna todas as turmas distintas cadastradas pelo usuário, em ordem alfabética."""
+    resultado = (
+        db.query(Aluno.turma)
+        .filter(Aluno.user_id == user.id, Aluno.turma.isnot(None), Aluno.turma != "")
+        .distinct()
+        .order_by(Aluno.turma)
+        .all()
+    )
+    return [r.turma for r in resultado]
+
+
 @router.get("/", response_model=List[AlunoResponse])
-def listar(user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
-    return db.query(Aluno).filter(Aluno.user_id == user.id).order_by(Aluno.id.desc()).all()
+def listar(
+    turma: Optional[str] = None,
+    busca: Optional[str] = None,
+    user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Aluno).filter(Aluno.user_id == user.id)
+    if turma:
+        query = query.filter(Aluno.turma == turma)
+    if busca:
+        termo = f"%{busca.strip()}%"
+        query = query.filter(
+            Aluno.nome.ilike(termo) | Aluno.numero_inscricao.ilike(termo)
+        )
+    return query.order_by(Aluno.nome).all()
 
 
 @router.post("/", response_model=AlunoResponse, status_code=201)
@@ -50,6 +76,7 @@ def criar(
     nome: str = Form(...),
     numero_inscricao: str = Form(...),
     telefone: str = Form(...),
+    turma: str = Form(""),
     foto: UploadFile = File(None),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -61,6 +88,7 @@ def criar(
         nome=nome,
         numero_inscricao=numero_inscricao,
         telefone=telefone,
+        turma=turma.strip() or None,
         foto=url_foto,
         user_id=user.id,
     )
@@ -85,6 +113,7 @@ def atualizar(
     nome: str = Form(...),
     numero_inscricao: str = Form(...),
     telefone: str = Form(...),
+    turma: str = Form(""),
     foto: UploadFile = File(None),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -99,6 +128,7 @@ def atualizar(
     aluno.nome = nome
     aluno.numero_inscricao = numero_inscricao
     aluno.telefone = telefone
+    aluno.turma = turma.strip() or None
 
     nova_url = salvar_foto(foto)
     if nova_url:

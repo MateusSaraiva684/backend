@@ -29,6 +29,7 @@ class Aluno(Base):
     nome = Column(String, nullable=False)
     numero_inscricao = Column(String, nullable=False)
     telefone = Column(String, nullable=False)
+    turma = Column(String, nullable=True)
     foto = Column(String, nullable=True)
     criado_em = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 

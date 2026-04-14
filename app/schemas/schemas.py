@@ -51,17 +51,20 @@ class AlunoCreate(BaseModel):
     nome: str
     numero_inscricao: str
     telefone: str
+    turma: Optional[str] = None
 
 class AlunoUpdate(BaseModel):
     nome: str
     numero_inscricao: str
     telefone: str
+    turma: Optional[str] = None
 
 class AlunoResponse(BaseModel):
     id: int
     nome: str
     numero_inscricao: str
     telefone: str
+    turma: Optional[str] = None
     foto: Optional[str] = None
     criado_em: datetime
     user_id: int
