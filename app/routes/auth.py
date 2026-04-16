@@ -54,17 +54,12 @@ def _salvar_refresh_token(db: Session, user_id: int, token: str):
 
 
 def _set_refresh_cookie(response: Response, token: str):
-    """
-    Em produção cross-origin (Vercel + Render) o cookie precisa de
-    samesite='none' + secure=True para ser enviado em requisições cross-site.
-    Em desenvolvimento usamos samesite='lax' sem secure.
-    """
     response.set_cookie(
         key="refresh_token",
         value=token,
         httponly=True,
-        secure=settings.is_production,           # True em produção (HTTPS obrigatório)
-        samesite="none" if settings.is_production else "lax",  # none para cross-origin
+        secure=settings.is_production,
+        samesite="none" if settings.is_production else "lax",
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
         path="/api/auth",
     )
@@ -90,18 +85,44 @@ def registrar(body: RegistrarRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="E-mail já cadastrado")
     if len(body.senha) < 6:
         raise HTTPException(status_code=400, detail="Senha deve ter no mínimo 6 caracteres")
+
     novo = Usuario(nome=body.nome, email=body.email, senha=hash_senha(body.senha))
     db.add(novo)
     db.commit()
+
     logger.info("Novo usuário registrado: %s", body.email)
     return {"mensagem": "Conta criada com sucesso"}
 
 
+# 🔥 LOGIN COM DEBUG
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)):
-    user = db.query(Usuario).filter(Usuario.email == body.email, Usuario.ativo == True).first()
-    if not user or not verificar_senha(body.senha, user.senha):
+
+    print("\n========== DEBUG LOGIN ==========")
+    print("EMAIL RECEBIDO:", body.email)
+    print("SENHA RECEBIDA:", body.senha)
+
+    user = db.query(Usuario).filter(
+        Usuario.email == body.email,
+        Usuario.ativo == True
+    ).first()
+
+    print("USUÁRIO ENCONTRADO:", user)
+
+    if user:
+        print("HASH NO BANCO:", user.senha)
+
+    if not user:
+        print("❌ ERRO: Usuário não encontrado")
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+
+    if not verificar_senha(body.senha, user.senha):
+        print("❌ ERRO: Senha inválida")
+        raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+
+    print("✅ LOGIN OK")
+    print("================================\n")
+
     logger.info("Login: %s", body.email)
     return _montar_token_response(user, db, response)
 
@@ -144,12 +165,14 @@ def logout(
         if rt:
             rt.revogado = True
             db.commit()
+
     response.delete_cookie(
         key="refresh_token",
         path="/api/auth",
         samesite="none" if settings.is_production else "lax",
         secure=settings.is_production,
     )
+
     logger.info("Logout: usuário id=%d", user.id)
     return {"mensagem": "Logout realizado com sucesso"}
 
