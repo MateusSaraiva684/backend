@@ -79,6 +79,7 @@ def health():
 def _seed_admin():
     """Cria, promove e sincroniza o admin automaticamente."""
     if not settings.ADMIN_EMAIL or not settings.ADMIN_PASSWORD:
+        logger.debug("Seed admin desabilitado: credenciais não configuradas")
         return
 
     from sqlalchemy.orm import Session as DBSession
@@ -93,7 +94,8 @@ def _seed_admin():
         ).first()
 
         if not admin_user:
-            # 🔥 Cria admin
+            # 🔥 Criação: novo admin 
+            logger.info("🔄 Criando novo usuário admin: %s", settings.ADMIN_EMAIL)
             admin_user = UsuarioModel(
                 nome="Administrador",
                 email=settings.ADMIN_EMAIL,
@@ -102,24 +104,37 @@ def _seed_admin():
                 ativo=True,
             )
             db.add(admin_user)
+            db.flush()  # ← Garante que a inserção está pronta
             db.commit()
-            logger.info("Admin criado automaticamente: %s", settings.ADMIN_EMAIL)
+            logger.info("✅ Admin criado com sucesso: %s", settings.ADMIN_EMAIL)
 
         else:
-            updated = False
-
-            # 🔥 Garante que é superuser
+            # 🔥 Sincronização: atualiza permissões e credenciais
+            logger.info("🔄 Sincronizando admin existente: %s", settings.ADMIN_EMAIL)
+            
+            mudou = False
+            
+            # Garante permissão superuser
             if not admin_user.is_superuser:
+                logger.debug("  → Elevando permissões para superuser")
                 admin_user.is_superuser = True
-                updated = True
-
-            # 🔥 SEMPRE sincroniza senha com .env
-            admin_user.senha = hash_senha(settings.ADMIN_PASSWORD)
-            updated = True
-
-            if updated:
+                mudou = True
+            
+            # SEMPRE re-hash da senha (força consistência com .env)
+            nova_senha_hash = hash_senha(settings.ADMIN_PASSWORD)
+            if admin_user.senha != nova_senha_hash:
+                logger.debug("  → Sincronizando senha com .env")
+                admin_user.senha = nova_senha_hash
+                mudou = True
+            
+            if mudou:
+                db.flush()  # ← Garante que as alterações estão prontas
                 db.commit()
-                logger.info("Admin sincronizado automaticamente: %s", settings.ADMIN_EMAIL)
+                logger.info("✅ Admin sincronizado: %s", settings.ADMIN_EMAIL)
+            else:
+                logger.debug("  ✓ Admin já estava sincronizado")
 
+    except Exception as e:
+        logger.error("❌ Erro ao sincronizar admin: %s", str(e), exc_info=True)
     finally:
         db.close()
