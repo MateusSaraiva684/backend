@@ -76,24 +76,37 @@ def health():
 
 
 @app.on_event("startup")
-def _promote_admin():
-    """Promove ADMIN_EMAIL a superusuario automaticamente."""
-    if not settings.ADMIN_EMAIL:
+def _seed_admin():
+    """Cria e/ou promove ADMIN_EMAIL a superusuario automaticamente."""
+    if not settings.ADMIN_EMAIL or not settings.ADMIN_PASSWORD:
         return
 
     from sqlalchemy.orm import Session as DBSession
-
     from app.database.session import SessionLocal
     from app.models.models import Usuario as UsuarioModel
+    from app.core.security import hash_senha
 
     db: DBSession = SessionLocal()
     try:
         admin_user = db.query(UsuarioModel).filter(
             UsuarioModel.email == settings.ADMIN_EMAIL
         ).first()
-        if admin_user and not admin_user.is_superuser:
+
+        if not admin_user:
+            admin_user = UsuarioModel(
+                nome="Administrador",
+                email=settings.ADMIN_EMAIL,
+                senha=hash_senha(settings.ADMIN_PASSWORD),
+                is_superuser=True,
+                ativo=True,
+            )
+            db.add(admin_user)
+            db.commit()
+            logger.info("Admin criado automaticamente: %s", settings.ADMIN_EMAIL)
+        elif not admin_user.is_superuser:
             admin_user.is_superuser = True
             db.commit()
             logger.info("Usuario '%s' promovido a superusuario", settings.ADMIN_EMAIL)
     finally:
         db.close()
+
