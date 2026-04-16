@@ -85,7 +85,7 @@ def _seed_admin():
     from sqlalchemy.orm import Session as DBSession
     from app.database.session import SessionLocal
     from app.models.models import Usuario as UsuarioModel
-    from app.core.security import hash_senha
+    from app.core.security import hash_senha, verificar_senha
 
     db: DBSession = SessionLocal()
     try:
@@ -120,11 +120,10 @@ def _seed_admin():
                 admin_user.is_superuser = True
                 mudou = True
             
-            # SEMPRE re-hash da senha (força consistência com .env)
-            nova_senha_hash = hash_senha(settings.ADMIN_PASSWORD)
-            if admin_user.senha != nova_senha_hash:
+            # Verifica se senha corresponde ao .env (usa bcrypt verify para comparação)
+            if not verificar_senha(settings.ADMIN_PASSWORD, admin_user.senha):
                 logger.debug("  → Sincronizando senha com .env")
-                admin_user.senha = nova_senha_hash
+                admin_user.senha = hash_senha(settings.ADMIN_PASSWORD)
                 mudou = True
             
             if mudou:
