@@ -77,7 +77,7 @@ def health():
 
 @app.on_event("startup")
 def _seed_admin():
-    """Cria e/ou promove ADMIN_EMAIL a superusuario automaticamente."""
+    """Cria, promove e sincroniza o admin automaticamente."""
     if not settings.ADMIN_EMAIL or not settings.ADMIN_PASSWORD:
         return
 
@@ -93,6 +93,7 @@ def _seed_admin():
         ).first()
 
         if not admin_user:
+            # 🔥 Cria admin
             admin_user = UsuarioModel(
                 nome="Administrador",
                 email=settings.ADMIN_EMAIL,
@@ -103,10 +104,22 @@ def _seed_admin():
             db.add(admin_user)
             db.commit()
             logger.info("Admin criado automaticamente: %s", settings.ADMIN_EMAIL)
-        elif not admin_user.is_superuser:
-            admin_user.is_superuser = True
-            db.commit()
-            logger.info("Usuario '%s' promovido a superusuario", settings.ADMIN_EMAIL)
+
+        else:
+            updated = False
+
+            # 🔥 Garante que é superuser
+            if not admin_user.is_superuser:
+                admin_user.is_superuser = True
+                updated = True
+
+            # 🔥 SEMPRE sincroniza senha com .env
+            admin_user.senha = hash_senha(settings.ADMIN_PASSWORD)
+            updated = True
+
+            if updated:
+                db.commit()
+                logger.info("Admin sincronizado automaticamente: %s", settings.ADMIN_EMAIL)
+
     finally:
         db.close()
-
