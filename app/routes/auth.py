@@ -94,36 +94,21 @@ def registrar(body: RegistrarRequest, db: Session = Depends(get_db)):
     return {"mensagem": "Conta criada com sucesso"}
 
 
-# 🔥 LOGIN COM DEBUG
+# � LOGIN
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)):
-
-    print("\n========== DEBUG LOGIN ==========")
-    print("EMAIL RECEBIDO:", body.email)
-    print("SENHA RECEBIDA:", body.senha)
-
     user = db.query(Usuario).filter(
         Usuario.email == body.email,
         Usuario.ativo == True
     ).first()
 
-    print("USUÁRIO ENCONTRADO:", user)
-
-    if user:
-        print("HASH NO BANCO:", user.senha)
-
     if not user:
-        print("❌ ERRO: Usuário não encontrado")
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
 
     if not verificar_senha(body.senha, user.senha):
-        print("❌ ERRO: Senha inválida")
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
 
-    print("✅ LOGIN OK")
-    print("================================\n")
-
-    logger.info("Login: %s", body.email)
+    logger.info("Login realizado: %s", body.email)
     return _montar_token_response(user, db, response)
 
 
