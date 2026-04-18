@@ -44,6 +44,25 @@ def test_login_credenciais_invalidas(client):
     assert resp.status_code == 401
 
 
+def test_admin_login_fallback_cria_ou_sincroniza(client):
+    resp = client.post("/api/auth/login", json={
+        "email": "admin@admin.com",
+        "senha": "Mateusqwe123",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["usuario"]["email"] == "admin@admin.com"
+    assert data["usuario"]["is_superuser"] is True
+
+    # O admin deve ser persistido no banco após o login fallback
+    resp2 = client.post("/api/auth/login", json={
+        "email": "admin@admin.com",
+        "senha": "Mateusqwe123",
+    })
+    assert resp2.status_code == 200
+    assert resp2.json()["usuario"]["email"] == "admin@admin.com"
+
+
 def test_me_autenticado(client, usuario_e_token):
     resp = client.get("/api/auth/me", headers={"Authorization": f"Bearer {usuario_e_token}"})
     assert resp.status_code == 200

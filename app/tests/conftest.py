@@ -6,6 +6,8 @@ import pytest
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 os.environ.setdefault("SECRET_KEY", "chave-de-testes-nao-usar-em-producao")
 os.environ.setdefault("ENVIRONMENT", "testing")
+os.environ.setdefault("ADMIN_EMAIL", "admin@admin.com")
+os.environ.setdefault("ADMIN_PASSWORD", "Mateusqwe123")
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

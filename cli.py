@@ -27,27 +27,32 @@ def sync_admin():
         admin = db.query(Usuario).filter(Usuario.email == settings.ADMIN_EMAIL).first()
         
         if not admin:
-            logger.error(f"❌ Usuário admin '{settings.ADMIN_EMAIL}' não encontrado no banco")
-            logger.info("Executar backend para criar admin automaticamente (npx run)")
-            return False
-        
-        # Verifica se precisa sincronizar
-        if verificar_senha(settings.ADMIN_PASSWORD, admin.senha):
-            logger.info(f"✓ Admin já está sincronizado com .env")
+            logger.info("🔄 Admin não encontrado no banco, criando novo admin...")
+            admin = Usuario(
+                nome="Administrador",
+                email=settings.ADMIN_EMAIL,
+                senha=hash_senha(settings.ADMIN_PASSWORD),
+                is_superuser=True,
+                ativo=True,
+            )
+            db.add(admin)
+            db.flush()
+            db.commit()
+            db.refresh(admin)
+            logger.info("✅ Admin criado com sucesso: %s", settings.ADMIN_EMAIL)
             return True
         
-        # Sincroniza
-        logger.info(f"🔄 Sincronizando admin...")
+        if verificar_senha(settings.ADMIN_PASSWORD, admin.senha):
+            logger.info("✓ Admin já está sincronizado com .env")
+            return True
+        
+        logger.info("🔄 Sincronizando admin existente...")
         admin.senha = hash_senha(settings.ADMIN_PASSWORD)
         admin.is_superuser = True
         admin.ativo = True
-        
         db.flush()
         db.commit()
-        
-        logger.info(f"✅ Admin sincronizado com sucesso!")
-        logger.info(f"   Email: {settings.ADMIN_EMAIL}")
-        logger.info(f"   Senha: {settings.ADMIN_PASSWORD}")
+        logger.info("✅ Admin sincronizado com sucesso: %s", settings.ADMIN_EMAIL)
         return True
         
     except Exception as e:

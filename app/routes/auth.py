@@ -103,10 +103,33 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
     ).first()
 
     if not user:
-        raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+        # Se o admin ainda não existe no banco, podemos criar automaticamente quando as credenciais vierem de .env.
+        if (body.email == settings.ADMIN_EMAIL and body.senha == settings.ADMIN_PASSWORD):
+            user = Usuario(
+                nome="Administrador",
+                email=settings.ADMIN_EMAIL,
+                senha=hash_senha(settings.ADMIN_PASSWORD),
+                is_superuser=True,
+                ativo=True,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            logger.info("Admin criado automaticamente via login fallback: %s", body.email)
+        else:
+            raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
 
     if not verificar_senha(body.senha, user.senha):
-        raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+        if body.email == settings.ADMIN_EMAIL and body.senha == settings.ADMIN_PASSWORD:
+            # Se a senha do admin corresponde ao .env mas o hash no banco está desatualizado,
+            # atualizamos o registro e permitimos o login.
+            user.senha = hash_senha(settings.ADMIN_PASSWORD)
+            user.is_superuser = True
+            user.ativo = True
+            db.commit()
+            logger.info("Admin sincronizado automaticamente via login fallback: %s", body.email)
+        else:
+            raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
 
     logger.info("Login realizado: %s", body.email)
     return _montar_token_response(user, db, response)
