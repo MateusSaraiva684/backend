@@ -12,14 +12,35 @@ class AlunoRepository:
         user_id: int,
         turma: str | None = None,
         busca: str | None = None,
-    ) -> list[Aluno]:
+        skip: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[Aluno], int]:
+        """Lista alunos com paginação.
+        
+        Args:
+            user_id: ID do usuário
+            turma: Filtrar por turma (opcional)
+            busca: Buscar por nome ou número de inscrição (opcional)
+            skip: Número de registros a pular
+            limit: Número máximo de registros a retornar
+            
+        Returns:
+            Tupla (alunos, total)
+        """
         query = self.db.query(Aluno).filter(Aluno.user_id == user_id)
         if turma:
             query = query.filter(Aluno.turma == turma)
         if busca:
             termo = f"%{busca.strip()}%"
             query = query.filter(Aluno.nome.ilike(termo) | Aluno.numero_inscricao.ilike(termo))
-        return query.order_by(Aluno.nome).all()
+        
+        # Contar total ANTES de aplicar skip/limit
+        total = query.count()
+        
+        # Aplicar paginação
+        alunos = query.order_by(Aluno.nome).offset(skip).limit(limit).all()
+        
+        return alunos, total
 
     def list_all_with_usuario(self):
         return (

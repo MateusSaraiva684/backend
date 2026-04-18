@@ -24,8 +24,48 @@ class AlunoService:
         user: Usuario,
         turma: str | None = None,
         busca: str | None = None,
-    ) -> list[Aluno]:
-        return self.alunos.list_by_user(user.id, turma=turma, busca=busca)
+        page: int = 1,
+        limit: int = 50,
+    ) -> dict:
+        """Lista alunos com paginação.
+        
+        Args:
+            user: Usuário autenticado
+            turma: Filtrar por turma (opcional)
+            busca: Buscar por nome ou número (opcional)
+            page: Número da página (começa em 1)
+            limit: Itens por página
+            
+        Returns:
+            Dict com dados paginados
+        """
+        # Validar page e limit
+        if page < 1:
+            page = 1
+        if limit < 1 or limit > 100:
+            limit = 50
+            
+        skip = (page - 1) * limit
+        alunos, total = self.alunos.list_by_user(
+            user.id, 
+            turma=turma, 
+            busca=busca, 
+            skip=skip, 
+            limit=limit
+        )
+        
+        total_pages = (total + limit - 1) // limit  # Ceiling division
+        
+        return {
+            "data": alunos,
+            "paginacao": {
+                "total": total,
+                "pagina": page,
+                "limite": limit,
+                "paginas_totais": total_pages,
+                "proxima_pagina": page + 1 if skip + limit < total else None,
+            }
+        }
 
     def criar(
         self,

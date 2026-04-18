@@ -80,6 +80,10 @@ def login(
     response: Response,
     auth_service: AuthService = Depends(get_auth_service),
 ):
+    """Autentica um usuário e retorna tokens de acesso e refresh.
+    
+    Rate limit: 5 tentativas por minuto por IP (implementado em middleware)
+    """
     user = auth_service.autenticar(body)
     return _token_response(auth_service.emitir_tokens(user), response)
 

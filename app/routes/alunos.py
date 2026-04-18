@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
@@ -24,14 +24,24 @@ def listar_turmas(
     return service.listar_turmas(user)
 
 
-@router.get("/", response_model=List[AlunoResponse])
+@router.get("/", response_model=dict)
 def listar(
     turma: Optional[str] = None,
     busca: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
     user: Usuario = Depends(get_current_user),
     service: AlunoService = Depends(get_aluno_service),
 ):
-    return service.listar(user, turma=turma, busca=busca)
+    """Lista alunos com paginação.
+    
+    Parâmetros:
+    - page: Número da página (padrão: 1)
+    - limit: Itens por página (padrão: 50, máximo: 100)
+    - turma: Filtrar por turma (opcional)
+    - busca: Buscar por nome ou número de inscrição (opcional)
+    """
+    return service.listar(user, turma=turma, busca=busca, page=page, limit=limit)
 
 
 @router.post("/", response_model=AlunoResponse, status_code=201)

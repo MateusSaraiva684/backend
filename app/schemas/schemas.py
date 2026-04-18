@@ -145,3 +145,18 @@ class AtualizarUsuarioRequest(BaseModel):
 
 class RedefinirSenhaRequest(BaseModel):
     nova_senha: str
+
+
+class PaginacaoMetadata(BaseModel):
+    """Metadata de paginação."""
+    total: int
+    pagina: int
+    limite: int
+    paginas_totais: int
+    proxima_pagina: Optional[int] = None
+
+
+class PaginadoResponse(BaseModel):
+    """Resposta paginada genérica."""
+    data: List[AlunoResponse]
+    paginacao: PaginacaoMetadata

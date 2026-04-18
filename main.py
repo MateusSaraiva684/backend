@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.exceptions import AppError
 from app.core.logging_config import configurar_logging
 from app.middleware.logging import request_logging_middleware
+from app.middleware.rate_limit import rate_limit_middleware
 from app.routes import admin, alunos, auth, presencas, reconhecimento
 
 configurar_logging()
@@ -37,6 +38,7 @@ app.add_middleware(
 )
 
 app.middleware("http")(request_logging_middleware)
+app.middleware("http")(rate_limit_middleware)
 
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(alunos.router, prefix="/api/alunos", tags=["Alunos"])
