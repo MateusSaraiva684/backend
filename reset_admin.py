@@ -19,7 +19,7 @@ def reset_admin():
     from app.core.config import settings
     
     if not settings.ADMIN_EMAIL or not settings.ADMIN_PASSWORD:
-        logger.error("❌ ADMIN_EMAIL ou ADMIN_PASSWORD não configurados em .env")
+        logger.error("ADMIN_EMAIL ou ADMIN_PASSWORD nao configurados em .env")
         return False
     
     db: Session = SessionLocal()
@@ -28,7 +28,7 @@ def reset_admin():
         admin = db.query(Usuario).filter(Usuario.email == settings.ADMIN_EMAIL).first()
         
         if not admin:
-            logger.error(f"❌ Usuário admin '{settings.ADMIN_EMAIL}' não encontrado no banco")
+            logger.error(f"Usuario admin '{settings.ADMIN_EMAIL}' nao encontrado no banco")
             return False
         
         # Computa novo hash
@@ -43,19 +43,19 @@ def reset_admin():
         db.flush()
         db.commit()
         
-        logger.info(f"✅ Admin sincronizado com sucesso!")
+        logger.info("Admin sincronizado com sucesso!")
         logger.info(f"   Email: {settings.ADMIN_EMAIL}")
         logger.info(f"   Superuser: True")
         logger.info(f"   Hash antigo: {hash_antigo[:20]}...")
         logger.info(f"   Hash novo:  {novo_hash[:20]}...")
-        logger.info(f"\n🔐 Agora você pode fazer login com:")
+        logger.info("\nAgora voce pode fazer login com:")
         logger.info(f"   Email: {settings.ADMIN_EMAIL}")
-        logger.info(f"   Senha: {settings.ADMIN_PASSWORD}")
+        logger.info("   Senha: use o valor configurado em ADMIN_PASSWORD")
         
         return True
         
     except Exception as e:
-        logger.error(f"❌ Erro ao resetar admin: {str(e)}", exc_info=True)
+        logger.error(f"Erro ao resetar admin: {str(e)}", exc_info=True)
         return False
     finally:
         db.close()

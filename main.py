@@ -94,8 +94,7 @@ def _seed_admin():
         ).first()
 
         if not admin_user:
-            # 🔥 Criação: novo admin 
-            logger.info("🔄 Criando novo usuário admin: %s", settings.ADMIN_EMAIL)
+            logger.info("Criando novo usuario admin: %s", settings.ADMIN_EMAIL)
             admin_user = UsuarioModel(
                 nome="Administrador",
                 email=settings.ADMIN_EMAIL,
@@ -104,36 +103,33 @@ def _seed_admin():
                 ativo=True,
             )
             db.add(admin_user)
-            db.flush()  # ← Garante que a inserção está pronta
+            db.flush()
             db.commit()
-            logger.info("✅ Admin criado com sucesso: %s", settings.ADMIN_EMAIL)
+            logger.info("Admin criado com sucesso: %s", settings.ADMIN_EMAIL)
 
         else:
-            # 🔥 Sincronização: atualiza permissões e credenciais
-            logger.info("🔄 Sincronizando admin existente: %s", settings.ADMIN_EMAIL)
+            logger.info("Sincronizando admin existente: %s", settings.ADMIN_EMAIL)
             
             mudou = False
             
-            # Garante permissão superuser
             if not admin_user.is_superuser:
-                logger.debug("  → Elevando permissões para superuser")
+                logger.debug("Elevando permissoes para superuser")
                 admin_user.is_superuser = True
                 mudou = True
             
-            # Verifica se senha corresponde ao .env (usa bcrypt verify para comparação)
             if not verificar_senha(settings.ADMIN_PASSWORD, admin_user.senha):
-                logger.debug("  → Sincronizando senha com .env")
+                logger.debug("Sincronizando senha com .env")
                 admin_user.senha = hash_senha(settings.ADMIN_PASSWORD)
                 mudou = True
             
             if mudou:
-                db.flush()  # ← Garante que as alterações estão prontas
+                db.flush()
                 db.commit()
-                logger.info("✅ Admin sincronizado: %s", settings.ADMIN_EMAIL)
+                logger.info("Admin sincronizado: %s", settings.ADMIN_EMAIL)
             else:
-                logger.debug("  ✓ Admin já estava sincronizado")
+                logger.debug("Admin ja estava sincronizado")
 
     except Exception as e:
-        logger.error("❌ Erro ao sincronizar admin: %s", str(e), exc_info=True)
+        logger.error("Erro ao sincronizar admin: %s", str(e), exc_info=True)
     finally:
         db.close()

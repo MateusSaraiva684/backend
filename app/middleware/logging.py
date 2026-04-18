@@ -11,7 +11,7 @@ async def request_logging_middleware(request: Request, call_next):
     duracao = (time.perf_counter() - inicio) * 1000
 
     logger.info(
-        "%s %s → %d (%.0fms)",
+        "%s %s -> %d (%.0fms)",
         request.method,
         request.url.path,
         response.status_code,
