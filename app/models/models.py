@@ -1,7 +1,26 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    ForeignKey,
+    DateTime,
+    Boolean,
+    UniqueConstraint,
+    Float,
+    JSON,
+    Table,
+)
 from sqlalchemy.orm import relationship
 from app.database.session import Base
+
+
+aluno_responsaveis = Table(
+    "aluno_responsaveis",
+    Base.metadata,
+    Column("aluno_id", ForeignKey("alunos.id", ondelete="CASCADE"), primary_key=True),
+    Column("responsavel_id", ForeignKey("responsaveis.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class Usuario(Base):
@@ -35,6 +54,52 @@ class Aluno(Base):
 
     user_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     usuario = relationship("Usuario", back_populates="alunos")
+    responsaveis = relationship(
+        "Responsavel",
+        secondary=aluno_responsaveis,
+        back_populates="alunos",
+    )
+    presencas = relationship("Presenca", back_populates="aluno", cascade="all, delete-orphan")
+    face_embeddings = relationship("FaceEmbedding", back_populates="aluno", cascade="all, delete-orphan")
+
+
+class Responsavel(Base):
+    __tablename__ = "responsaveis"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String, nullable=False)
+    telefone = Column(String, nullable=False)
+    email = Column(String, nullable=True)
+
+    alunos = relationship(
+        "Aluno",
+        secondary=aluno_responsaveis,
+        back_populates="responsaveis",
+    )
+
+
+class Presenca(Base):
+    __tablename__ = "presencas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    aluno_id = Column(Integer, ForeignKey("alunos.id", ondelete="CASCADE"), nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    origem = Column(String, nullable=False)
+    confianca = Column(Float, nullable=True)
+    status = Column(String, nullable=False, default="confirmado")
+
+    aluno = relationship("Aluno", back_populates="presencas")
+
+
+class FaceEmbedding(Base):
+    __tablename__ = "face_embeddings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    aluno_id = Column(Integer, ForeignKey("alunos.id", ondelete="CASCADE"), nullable=False, index=True)
+    embedding = Column(JSON, nullable=False)
+    criado_em = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    aluno = relationship("Aluno", back_populates="face_embeddings")
 
 
 class RefreshToken(Base):

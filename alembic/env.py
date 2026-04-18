@@ -1,17 +1,24 @@
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
-from alembic import context
 import os
 import sys
+
+from alembic import context
 from dotenv import load_dotenv
+from sqlalchemy import engine_from_config, pool
 
 load_dotenv()
 
-# Garante que o projeto está no path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.database.session import Base
-from app.models.models import Usuario, Aluno, RefreshToken  # noqa: garante que os modelos são registrados
+from app.models.models import (  # noqa: garante que os modelos sejam registrados
+    Aluno,
+    FaceEmbedding,
+    Presenca,
+    RefreshToken,
+    Responsavel,
+    Usuario,
+)
 
 config = context.config
 

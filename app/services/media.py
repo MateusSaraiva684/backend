@@ -1,8 +1,9 @@
 import logging
 
-from fastapi import HTTPException, UploadFile
+from fastapi import UploadFile
 
 from app.core.config import settings
+from app.core.exceptions import AppError, BadRequestError, ServiceUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +19,8 @@ def _get_cloudinary_uploader(raise_on_missing: bool = True):
     except ImportError as exc:
         logger.error("Cloudinary nao esta disponivel no ambiente atual")
         if raise_on_missing:
-            raise HTTPException(
-                status_code=500,
-                detail="Servico de imagens indisponivel. Tente novamente mais tarde.",
+            raise ServiceUnavailableError(
+                "Servico de imagens indisponivel. Tente novamente mais tarde."
             ) from exc
         return None
 
@@ -37,19 +37,16 @@ def _get_cloudinary_uploader(raise_on_missing: bool = True):
     return cloudinary.uploader
 
 
-def salvar_foto(foto: UploadFile) -> str | None:
+def salvar_foto(foto: UploadFile | None) -> str | None:
     """Faz upload da foto para o Cloudinary e retorna a URL segura."""
     if not foto or not foto.filename:
         return None
     if foto.content_type not in EXTENSOES_PERMITIDAS:
-        raise HTTPException(
-            status_code=400,
-            detail="Tipo de arquivo nao permitido. Use JPEG, PNG ou WEBP.",
-        )
+        raise BadRequestError("Tipo de arquivo nao permitido. Use JPEG, PNG ou WEBP.")
 
     conteudo = foto.file.read()
     if len(conteudo) > TAMANHO_MAXIMO:
-        raise HTTPException(status_code=400, detail="Foto muito grande. Maximo 5MB.")
+        raise BadRequestError("Foto muito grande. Maximo 5MB.")
 
     uploader = _get_cloudinary_uploader()
     try:
@@ -62,7 +59,7 @@ def salvar_foto(foto: UploadFile) -> str | None:
         return resultado["secure_url"]
     except Exception as exc:
         logger.error("Erro ao fazer upload para Cloudinary: %s", exc)
-        raise HTTPException(status_code=500, detail="Erro ao salvar a foto. Tente novamente.") from exc
+        raise AppError(500, "Erro ao salvar a foto. Tente novamente.") from exc
 
 
 def deletar_foto_cloudinary(url: str | None):

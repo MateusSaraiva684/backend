@@ -1,56 +1,27 @@
-import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.models.models import Aluno, Usuario
+from app.models.models import Usuario
 from app.routes.auth import get_current_user
 from app.schemas.schemas import AlunoResponse
-from app.services.media import deletar_foto_cloudinary, salvar_foto
+from app.services.aluno_service import AlunoService
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
 
-def _normalizar_numero_inscricao(numero_inscricao: str) -> str:
-    numero_inscricao = numero_inscricao.strip()
-    if not numero_inscricao:
-        raise HTTPException(status_code=400, detail="Numero de inscricao e obrigatorio")
-    return numero_inscricao
-
-
-def _garantir_numero_inscricao_disponivel(
-    db: Session,
-    user_id: int,
-    numero_inscricao: str,
-    aluno_id: int | None = None,
-):
-    query = db.query(Aluno).filter(
-        Aluno.user_id == user_id,
-        Aluno.numero_inscricao == numero_inscricao,
-    )
-    if aluno_id is not None:
-        query = query.filter(Aluno.id != aluno_id)
-    if query.first():
-        raise HTTPException(
-            status_code=400,
-            detail="Numero de inscricao ja cadastrado para esta escola",
-        )
+def get_aluno_service(db: Session = Depends(get_db)) -> AlunoService:
+    return AlunoService(db)
 
 
 @router.get("/turmas", response_model=List[str])
-def listar_turmas(user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Retorna todas as turmas distintas cadastradas pelo usuário, em ordem alfabética."""
-    resultado = (
-        db.query(Aluno.turma)
-        .filter(Aluno.user_id == user.id, Aluno.turma.isnot(None), Aluno.turma != "")
-        .distinct()
-        .order_by(Aluno.turma)
-        .all()
-    )
-    return [r.turma for r in resultado]
+def listar_turmas(
+    user: Usuario = Depends(get_current_user),
+    service: AlunoService = Depends(get_aluno_service),
+):
+    return service.listar_turmas(user)
 
 
 @router.get("/", response_model=List[AlunoResponse])
@@ -58,17 +29,9 @@ def listar(
     turma: Optional[str] = None,
     busca: Optional[str] = None,
     user: Usuario = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    service: AlunoService = Depends(get_aluno_service),
 ):
-    query = db.query(Aluno).filter(Aluno.user_id == user.id)
-    if turma:
-        query = query.filter(Aluno.turma == turma)
-    if busca:
-        termo = f"%{busca.strip()}%"
-        query = query.filter(
-            Aluno.nome.ilike(termo) | Aluno.numero_inscricao.ilike(termo)
-        )
-    return query.order_by(Aluno.nome).all()
+    return service.listar(user, turma=turma, busca=busca)
 
 
 @router.post("/", response_model=AlunoResponse, status_code=201)
@@ -79,32 +42,25 @@ def criar(
     turma: str = Form(""),
     foto: UploadFile = File(None),
     user: Usuario = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    service: AlunoService = Depends(get_aluno_service),
 ):
-    numero_inscricao = _normalizar_numero_inscricao(numero_inscricao)
-    _garantir_numero_inscricao_disponivel(db, user.id, numero_inscricao)
-    url_foto = salvar_foto(foto)
-    aluno = Aluno(
+    return service.criar(
+        user=user,
         nome=nome,
         numero_inscricao=numero_inscricao,
         telefone=telefone,
-        turma=turma.strip() or None,
-        foto=url_foto,
-        user_id=user.id,
+        turma=turma,
+        foto=foto,
     )
-    db.add(aluno)
-    db.commit()
-    db.refresh(aluno)
-    logger.info("Aluno criado: id=%d por usuario id=%d", aluno.id, user.id)
-    return aluno
 
 
 @router.get("/{aluno_id}", response_model=AlunoResponse)
-def buscar(aluno_id: int, user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
-    aluno = db.query(Aluno).filter(Aluno.id == aluno_id, Aluno.user_id == user.id).first()
-    if not aluno:
-        raise HTTPException(status_code=404, detail="Aluno nao encontrado")
-    return aluno
+def buscar(
+    aluno_id: int,
+    user: Usuario = Depends(get_current_user),
+    service: AlunoService = Depends(get_aluno_service),
+):
+    return service.buscar(user, aluno_id)
 
 
 @router.put("/{aluno_id}", response_model=AlunoResponse)
@@ -116,38 +72,23 @@ def atualizar(
     turma: str = Form(""),
     foto: UploadFile = File(None),
     user: Usuario = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    service: AlunoService = Depends(get_aluno_service),
 ):
-    aluno = db.query(Aluno).filter(Aluno.id == aluno_id, Aluno.user_id == user.id).first()
-    if not aluno:
-        raise HTTPException(status_code=404, detail="Aluno nao encontrado")
-
-    numero_inscricao = _normalizar_numero_inscricao(numero_inscricao)
-    _garantir_numero_inscricao_disponivel(db, user.id, numero_inscricao, aluno_id=aluno.id)
-
-    aluno.nome = nome
-    aluno.numero_inscricao = numero_inscricao
-    aluno.telefone = telefone
-    aluno.turma = turma.strip() or None
-
-    nova_url = salvar_foto(foto)
-    if nova_url:
-        deletar_foto_cloudinary(aluno.foto)
-        aluno.foto = nova_url
-
-    db.commit()
-    db.refresh(aluno)
-    logger.info("Aluno atualizado: id=%d", aluno_id)
-    return aluno
+    return service.atualizar(
+        user=user,
+        aluno_id=aluno_id,
+        nome=nome,
+        numero_inscricao=numero_inscricao,
+        telefone=telefone,
+        turma=turma,
+        foto=foto,
+    )
 
 
 @router.delete("/{aluno_id}", status_code=204)
-def deletar(aluno_id: int, user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
-    aluno = db.query(Aluno).filter(Aluno.id == aluno_id, Aluno.user_id == user.id).first()
-    if not aluno:
-        raise HTTPException(status_code=404, detail="Aluno nao encontrado")
-
-    deletar_foto_cloudinary(aluno.foto)
-    db.delete(aluno)
-    db.commit()
-    logger.info("Aluno deletado: id=%d por usuario id=%d", aluno_id, user.id)
+def deletar(
+    aluno_id: int,
+    user: Usuario = Depends(get_current_user),
+    service: AlunoService = Depends(get_aluno_service),
+):
+    service.deletar(user, aluno_id)

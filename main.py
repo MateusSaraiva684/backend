@@ -9,9 +9,10 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
+from app.core.exceptions import AppError
 from app.core.logging_config import configurar_logging
 from app.middleware.logging import request_logging_middleware
-from app.routes import admin, alunos, auth
+from app.routes import admin, alunos, auth, presencas, reconhecimento
 
 configurar_logging()
 logger = logging.getLogger(__name__)
@@ -40,6 +41,8 @@ app.middleware("http")(request_logging_middleware)
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(alunos.router, prefix="/api/alunos", tags=["Alunos"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+app.include_router(presencas.router, prefix="/api/presencas", tags=["Presencas"])
+app.include_router(reconhecimento.router, prefix="/api/reconhecimento", tags=["Reconhecimento"])
 
 os.makedirs("uploads/alunos", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
@@ -47,6 +50,11 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"erro": exc.detail})
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
     return JSONResponse(status_code=exc.status_code, content={"erro": exc.detail})
 
 
@@ -67,19 +75,11 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 @app.on_event("startup")
 def startup():
+    """Inicializa a aplicacao e sincroniza o admin automaticamente."""
     logger.info("Aplicacao iniciada - ambiente: %s", settings.ENVIRONMENT)
-
-
-@app.get("/api/health")
-def health():
-    return {"status": "ok", "version": "2.0.0"}
-
-
-@app.on_event("startup")
-def _seed_admin():
-    """Cria, promove e sincroniza o admin automaticamente."""
+    
     if not settings.ADMIN_EMAIL or not settings.ADMIN_PASSWORD:
-        logger.debug("Seed admin desabilitado: credenciais não configuradas")
+        logger.debug("Seed admin desabilitado: credenciais nao configuradas")
         return
 
     from sqlalchemy.orm import Session as DBSession
@@ -139,3 +139,8 @@ def _seed_admin():
         logger.error("Erro ao sincronizar admin: %s", str(e), exc_info=True)
     finally:
         db.close()
+
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "version": "2.0.0"}

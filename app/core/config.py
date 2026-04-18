@@ -30,6 +30,15 @@ class Settings:
     CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "")
     CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "")
 
+    FACE_RECOGNITION_SERVICE_URL: str = os.getenv("FACE_RECOGNITION_SERVICE_URL", "")
+    FACE_RECOGNITION_TIMEOUT_SECONDS: float = float(
+        os.getenv("FACE_RECOGNITION_TIMEOUT_SECONDS", "10")
+    )
+
+    REDIS_URL: str = os.getenv("REDIS_URL", "")
+    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "")
+    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "")
+
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
