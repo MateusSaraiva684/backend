@@ -4,6 +4,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _env_flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "sim", "on")
+
+
 class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
@@ -26,6 +33,10 @@ class Settings:
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
+
+    @property
+    def sync_admin_password_on_startup(self) -> bool:
+        return _env_flag("SYNC_ADMIN_PASSWORD_ON_STARTUP", not self.is_production)
 
 
 settings = Settings()

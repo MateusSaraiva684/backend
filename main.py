@@ -117,10 +117,16 @@ def _seed_admin():
                 admin_user.is_superuser = True
                 mudou = True
             
-            if not verificar_senha(settings.ADMIN_PASSWORD, admin_user.senha):
-                logger.debug("Sincronizando senha com .env")
-                admin_user.senha = hash_senha(settings.ADMIN_PASSWORD)
-                mudou = True
+            senha_sincronizada = verificar_senha(settings.ADMIN_PASSWORD, admin_user.senha)
+            if not senha_sincronizada:
+                if settings.sync_admin_password_on_startup:
+                    logger.debug("Sincronizando senha com .env")
+                    admin_user.senha = hash_senha(settings.ADMIN_PASSWORD)
+                    mudou = True
+                else:
+                    logger.warning(
+                        "Senha do admin difere de ADMIN_PASSWORD; sincronizacao automatica desabilitada"
+                    )
             
             if mudou:
                 db.flush()
