@@ -42,13 +42,28 @@ class AlunoRepository:
         
         return alunos, total
 
-    def list_all_with_usuario(self):
-        return (
+    def list_all_with_usuario(self, skip: int = 0, limit: int = 50) -> tuple[list, int]:
+        """Lista todos os alunos com informações do usuário e paginação.
+        
+        Args:
+            skip: Número de registros a pular
+            limit: Número máximo de registros a retornar
+            
+        Returns:
+            Tupla (alunos_com_usuario, total)
+        """
+        query = (
             self.db.query(Aluno, Usuario.nome.label("usuario_nome"), Usuario.email.label("usuario_email"))
             .join(Usuario, Aluno.user_id == Usuario.id)
-            .order_by(Aluno.id.desc())
-            .all()
         )
+        
+        # Contar total ANTES de aplicar skip/limit
+        total = query.count()
+        
+        # Aplicar paginação
+        result = query.order_by(Aluno.id.desc()).offset(skip).limit(limit).all()
+        
+        return result, total
 
     def list_turmas_by_user(self, user_id: int) -> list[str]:
         resultado = (

@@ -20,7 +20,7 @@ def test_registrar_senha_curta(client):
     resp = client.post("/api/auth/registrar", json={
         "nome": "João", "email": "joao@email.com", "senha": "123"
     })
-    assert resp.status_code == 400
+    assert resp.status_code == 422  # Pydantic validation error
 
 
 def test_login_sucesso(client):

@@ -106,21 +106,42 @@ class AdminService:
         logger.info("Usuario id=%d deletado pelo admin id=%d", usuario_id, admin.id)
         return {"mensagem": "Usuario removido com sucesso"}
 
-    def listar_todos_alunos(self) -> list[dict]:
-        return [
-            {
-                "id": a[0].id,
-                "nome": a[0].nome,
-                "numero_inscricao": a[0].numero_inscricao,
-                "telefone": a[0].telefone,
-                "foto": a[0].foto,
-                "criado_em": a[0].criado_em,
-                "user_id": a[0].user_id,
-                "usuario_nome": a[1],
-                "usuario_email": a[2],
-            }
-            for a in self.alunos.list_all_with_usuario()
-        ]
+    def listar_todos_alunos(self, page: int = 1, limit: int = 50) -> dict:
+        """Lista todos os alunos com paginação.
+        
+        Args:
+            page: Número da página (começa em 1)
+            limit: Número de registros por página
+            
+        Returns:
+            Dicionário com dados paginados e metadados
+        """
+        skip = (page - 1) * limit
+        alunos, total = self.alunos.list_all_with_usuario(skip=skip, limit=limit)
+        
+        return {
+            "data": [
+                {
+                    "id": a[0].id,
+                    "nome": a[0].nome,
+                    "numero_inscricao": a[0].numero_inscricao,
+                    "telefone": a[0].telefone,
+                    "foto": a[0].foto,
+                    "criado_em": a[0].criado_em,
+                    "user_id": a[0].user_id,
+                    "usuario_nome": a[1],
+                    "usuario_email": a[2],
+                }
+                for a in alunos
+            ],
+            "paginacao": {
+                "total": total,
+                "pagina": page,
+                "limite": limit,
+                "paginas_totais": (total + limit - 1) // limit,
+                "proxima_pagina": page + 1 if page * limit < total else None,
+            },
+        }
 
     def deletar_aluno(self, aluno_id: int, admin: Usuario) -> dict:
         self.aluno_service.deletar_admin(admin, aluno_id)

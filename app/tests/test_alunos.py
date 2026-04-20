@@ -15,7 +15,11 @@ def aluno_payload(**overrides):
 def test_listar_alunos_vazio(client, usuario_e_token):
     resp = client.get("/api/alunos/", headers=headers(usuario_e_token))
     assert resp.status_code == 200
-    assert resp.json() == []
+    data = resp.json()
+    assert "data" in data
+    assert "paginacao" in data
+    assert len(data["data"]) == 0
+    assert data["paginacao"]["total"] == 0
 
 
 def test_criar_aluno(client, usuario_e_token):
@@ -36,7 +40,11 @@ def test_listar_alunos_apos_criar(client, usuario_e_token):
     )
     resp = client.get("/api/alunos/", headers=headers(usuario_e_token))
     assert resp.status_code == 200
-    assert len(resp.json()) == 1
+    data = resp.json()
+    assert "data" in data
+    assert "paginacao" in data
+    assert len(data["data"]) == 1
+    assert data["data"][0]["nome"] == "Ana"
 
 
 def test_buscar_aluno(client, usuario_e_token):

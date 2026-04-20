@@ -3,13 +3,15 @@
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Tuple
+from collections import defaultdict
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
-# Rate limit store: {ip: {endpoint: [(timestamp, count), ...]}}
-rate_limit_store: Dict[str, Dict[str, list]] = {}
+# Rate limit store: {ip:endpoint: [timestamps...]}
+# Usando defaultdict para evitar KeyError
+rate_limit_store: Dict[str, list] = defaultdict(list)
 
 
 def get_client_ip(request: Request) -> str:
@@ -42,10 +44,7 @@ def check_rate_limit(
     now = datetime.now()
     key = f"{ip}:{endpoint}"
     
-    if key not in rate_limit_store:
-        rate_limit_store[key] = []
-    
-    # Limpar requisições antigas
+    # Limpar requisições antigas (fora da janela)
     cutoff_time = now - timedelta(seconds=window_seconds)
     rate_limit_store[key] = [
         timestamp for timestamp in rate_limit_store[key]
@@ -56,6 +55,7 @@ def check_rate_limit(
     current_count = len(rate_limit_store[key])
     
     if current_count >= max_requests:
+        logger.warning(f"Rate limit excedido: IP {ip} em {endpoint} - {current_count}/{max_requests}")
         return False, 0
     
     # Adicionar timestamp atual
@@ -67,14 +67,16 @@ def check_rate_limit(
 
 
 async def rate_limit_middleware(request: Request, call_next):
-    """Middleware de rate limiting para endpoints sensíveis."""
+    """Middleware de rate limiting para endpoints sensíveis (login)."""
     
-    # Apenas aplicar a endpoints sensíveis
-    if not request.url.path.startswith("/api/auth/login"):
+    # Apenas aplicar a /api/auth/login
+    if request.url.path != "/api/auth/login":
         return await call_next(request)
     
-    # Se for teste (client IP é 'testclient'), permitir
+    # Extrair IP do cliente
     client_ip = get_client_ip(request)
+    
+    # Se for teste (client IP é 'testclient'), permitir sem rate limit
     if client_ip == "testclient":
         return await call_next(request)
     
@@ -82,7 +84,7 @@ async def rate_limit_middleware(request: Request, call_next):
     if not request.client:
         return await call_next(request)
     
-    # Verificar rate limit
+    # Verificar rate limit: 5 tentativas por minuto
     allowed, remaining = check_rate_limit(
         ip=client_ip,
         endpoint="/api/auth/login",
@@ -100,11 +102,11 @@ async def rate_limit_middleware(request: Request, call_next):
             }
         )
     
-    # Continuar com requisição normal
+    # Processar requisição
     response = await call_next(request)
     
-    # Adicionar headers de rate limit
-    response.headers["X-RateLimit-Limit"] = "5"
+    # Adicionar headers de rate limit à resposta
+    response.headers["X-RateLimit-Limit"] = str(5)
     response.headers["X-RateLimit-Remaining"] = str(remaining)
     response.headers["X-RateLimit-Reset"] = str(
         (datetime.now() + timedelta(seconds=60)).timestamp()

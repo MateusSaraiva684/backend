@@ -2,6 +2,7 @@ import logging
 
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.models import Aluno, Usuario
@@ -56,8 +57,26 @@ class AlunoService:
         
         total_pages = (total + limit - 1) // limit  # Ceiling division
         
+        # Converter objetos Aluno para dicionários serializáveis
+        dados_alunos = []
+        for aluno in alunos:
+            dados_alunos.append({
+                "id": aluno.id,
+                "nome": aluno.nome,
+                "numero_inscricao": aluno.numero_inscricao,
+                "telefone": aluno.telefone,
+                "turma": aluno.turma,
+                "foto": aluno.foto,
+                "criado_em": aluno.criado_em,
+                "user_id": aluno.user_id,
+                "responsaveis": [
+                    {"id": r.id, "nome": r.nome, "telefone": r.telefone}
+                    for r in aluno.responsaveis
+                ] if hasattr(aluno, 'responsaveis') else []
+            })
+        
         return {
-            "data": alunos,
+            "data": dados_alunos,
             "paginacao": {
                 "total": total,
                 "pagina": page,
@@ -77,20 +96,40 @@ class AlunoService:
         foto: UploadFile | None = None,
     ) -> Aluno:
         numero_inscricao = self._normalizar_numero_inscricao(numero_inscricao)
-        self._garantir_numero_inscricao_disponivel(user.id, numero_inscricao)
+        
+        try:
+            foto_url = salvar_foto(foto) if foto else None
+        except Exception as e:
+            logger.error("Erro ao fazer upload de foto: %s", str(e))
+            raise
+        
         aluno = Aluno(
             nome=nome,
             numero_inscricao=numero_inscricao,
             telefone=telefone,
             turma=turma.strip() or None,
-            foto=salvar_foto(foto),
+            foto=foto_url,
             user_id=user.id,
         )
-        self.alunos.add(aluno)
-        self.db.commit()
-        self.db.refresh(aluno)
-        logger.info("Aluno criado: id=%d por usuario id=%d", aluno.id, user.id)
-        return aluno
+        try:
+            self.alunos.add(aluno)
+            self.db.flush()  # Força constraint check do UNIQUE
+            self.db.commit()
+            self.db.refresh(aluno)
+            logger.info("Aluno criado: id=%d por usuario id=%d", aluno.id, user.id)
+            return aluno
+        except IntegrityError as e:
+            self.db.rollback()
+            # Detecta violação de constraint UNIQUE (SQLite, PostgreSQL)
+            if "alunos.user_id, alunos.numero_inscricao" in str(e) or "uq_alunos_user_numero_inscricao" in str(e):
+                logger.warning("Numero inscricao duplicado para usuario id=%d: %s", user.id, numero_inscricao)
+                raise BadRequestError("Numero de inscricao ja cadastrado para esta escola")
+            logger.error("Erro ao criar aluno (integridade): %s", str(e))
+            raise BadRequestError("Erro ao criar aluno: dados inválidos")
+        except Exception as e:
+            self.db.rollback()
+            logger.error("Erro ao criar aluno: %s", str(e))
+            raise
 
     def buscar(self, user: Usuario, aluno_id: int) -> Aluno:
         aluno = self.alunos.get_by_user(aluno_id, user.id)
@@ -116,11 +155,6 @@ class AlunoService:
     ) -> Aluno:
         aluno = self.buscar(user, aluno_id)
         numero_inscricao = self._normalizar_numero_inscricao(numero_inscricao)
-        self._garantir_numero_inscricao_disponivel(
-            user.id,
-            numero_inscricao,
-            aluno_id=aluno.id,
-        )
 
         aluno.nome = nome
         aluno.numero_inscricao = numero_inscricao
@@ -132,10 +166,24 @@ class AlunoService:
             deletar_foto_cloudinary(aluno.foto)
             aluno.foto = nova_url
 
-        self.db.commit()
-        self.db.refresh(aluno)
-        logger.info("Aluno atualizado: id=%d", aluno_id)
-        return aluno
+        try:
+            self.db.flush()  # Força constraint check do UNIQUE
+            self.db.commit()
+            self.db.refresh(aluno)
+            logger.info("Aluno atualizado: id=%d", aluno_id)
+            return aluno
+        except IntegrityError as e:
+            self.db.rollback()
+            # Detecta violação de constraint UNIQUE (SQLite, PostgreSQL)
+            if "alunos.user_id, alunos.numero_inscricao" in str(e) or "uq_alunos_user_numero_inscricao" in str(e):
+                logger.warning("Numero inscricao duplicado na atualização: %s", numero_inscricao)
+                raise BadRequestError("Numero de inscricao ja cadastrado para esta escola")
+            logger.error("Erro ao atualizar aluno (integridade): %s", str(e))
+            raise BadRequestError("Erro ao atualizar aluno: dados inválidos")
+        except Exception as e:
+            self.db.rollback()
+            logger.error("Erro ao atualizar aluno: %s", str(e))
+            raise
 
     def deletar(self, user: Usuario, aluno_id: int) -> None:
         aluno = self.buscar(user, aluno_id)
@@ -158,12 +206,3 @@ class AlunoService:
         if not numero_inscricao:
             raise BadRequestError("Numero de inscricao e obrigatorio")
         return numero_inscricao
-
-    def _garantir_numero_inscricao_disponivel(
-        self,
-        user_id: int,
-        numero_inscricao: str,
-        aluno_id: int | None = None,
-    ) -> None:
-        if self.alunos.numero_inscricao_exists(user_id, numero_inscricao, aluno_id=aluno_id):
-            raise BadRequestError("Numero de inscricao ja cadastrado para esta escola")

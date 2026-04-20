@@ -14,9 +14,16 @@ class ErroResponse(BaseModel):
 
 
 class RegistrarRequest(BaseModel):
-    nome: str
+    nome: str = Field(..., min_length=1, max_length=255)
     email: EmailStr
-    senha: str
+    senha: str = Field(..., min_length=6, max_length=255)
+    
+    @field_validator("nome", "senha")
+    @classmethod
+    def nao_vazio_ou_apenas_espacos(cls, v):
+        if not v.strip():
+            raise ValueError("Campo não pode conter apenas espaços em branco")
+        return v.strip()
 
 
 class LoginRequest(BaseModel):
@@ -46,9 +53,16 @@ class TokenResponse(BaseModel):
 
 
 class ResponsavelCreate(BaseModel):
-    nome: str
-    telefone: str
+    nome: str = Field(..., min_length=1, max_length=255)
+    telefone: str = Field(..., min_length=1, max_length=20)
     email: Optional[EmailStr] = None
+    
+    @field_validator("nome", "telefone")
+    @classmethod
+    def nao_vazio_ou_apenas_espacos(cls, v):
+        if v and not v.strip():
+            raise ValueError("Campo não pode conter apenas espaços em branco")
+        return v.strip() if v else v
 
 
 class ResponsavelResponse(BaseModel):
@@ -61,17 +75,31 @@ class ResponsavelResponse(BaseModel):
 
 
 class AlunoCreate(BaseModel):
-    nome: str
-    numero_inscricao: str
-    telefone: str
-    turma: Optional[str] = None
+    nome: str = Field(..., min_length=1, max_length=255)
+    numero_inscricao: str = Field(..., min_length=1, max_length=50)
+    telefone: str = Field(..., min_length=1, max_length=20)
+    turma: Optional[str] = Field(None, max_length=100)
+    
+    @field_validator("nome", "numero_inscricao", "telefone", "turma")
+    @classmethod
+    def nao_vazio_ou_apenas_espacos(cls, v):
+        if v and not v.strip():
+            raise ValueError("Campo não pode conter apenas espaços em branco")
+        return v.strip() if v else v
 
 
 class AlunoUpdate(BaseModel):
-    nome: str
-    numero_inscricao: str
-    telefone: str
-    turma: Optional[str] = None
+    nome: str = Field(..., min_length=1, max_length=255)
+    numero_inscricao: str = Field(..., min_length=1, max_length=50)
+    telefone: str = Field(..., min_length=1, max_length=20)
+    turma: Optional[str] = Field(None, max_length=100)
+    
+    @field_validator("nome", "numero_inscricao", "telefone", "turma")
+    @classmethod
+    def nao_vazio_ou_apenas_espacos(cls, v):
+        if v and not v.strip():
+            raise ValueError("Campo não pode conter apenas espaços em branco")
+        return v.strip() if v else v
 
 
 class AlunoResponse(BaseModel):
@@ -138,13 +166,27 @@ class FaceEmbeddingResponse(BaseModel):
 
 
 class AtualizarUsuarioRequest(BaseModel):
-    nome: Optional[str] = None
+    nome: Optional[str] = Field(None, min_length=1, max_length=255)
     email: Optional[EmailStr] = None
     ativo: Optional[bool] = None
+    
+    @field_validator("nome")
+    @classmethod
+    def nome_nao_vazio(cls, v):
+        if v and not v.strip():
+            raise ValueError("Nome não pode conter apenas espaços em branco")
+        return v.strip() if v else None
 
 
 class RedefinirSenhaRequest(BaseModel):
-    nova_senha: str
+    nova_senha: str = Field(..., min_length=6, max_length=255)
+    
+    @field_validator("nova_senha")
+    @classmethod
+    def senha_valida(cls, v):
+        if not v.strip():
+            raise ValueError("Senha não pode conter apenas espaços em branco")
+        return v
 
 
 class PaginacaoMetadata(BaseModel):

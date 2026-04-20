@@ -47,6 +47,9 @@ def salvar_foto(foto: UploadFile | None) -> str | None:
     conteudo = foto.file.read()
     if len(conteudo) > TAMANHO_MAXIMO:
         raise BadRequestError("Foto muito grande. Maximo 5MB.")
+    
+    # Reset file pointer para possível re-leitura
+    foto.file.seek(0)
 
     uploader = _get_cloudinary_uploader()
     try:

@@ -95,7 +95,17 @@ def refresh(
     body: Optional[RefreshRequest] = None,
     auth_service: AuthService = Depends(get_auth_service),
 ):
+    """Renova o access token usando refresh token.
+    
+    Aceita refresh token via:
+    - Cookie: refresh_token
+    - Body JSON: {"refresh_token": "..."}
+    """
     token = cookie_token or (body.refresh_token if body else None)
+    
+    if not token:
+        raise UnauthorizedError("Refresh token nao fornecido (cookie ou body)")
+    
     return _token_response(auth_service.renovar(token), response)
 
 

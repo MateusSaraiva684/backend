@@ -49,34 +49,35 @@ class AuthService:
     def autenticar(self, body: LoginRequest) -> Usuario:
         user = self.usuarios.get_by_email(body.email, ativo=True)
 
-        if not user:
-            if body.email == settings.ADMIN_EMAIL and body.senha == settings.ADMIN_PASSWORD:
-                user = Usuario(
-                    nome="Administrador",
-                    email=settings.ADMIN_EMAIL,
-                    senha=hash_senha(settings.ADMIN_PASSWORD),
-                    is_superuser=True,
-                    ativo=True,
-                )
+        # Validar senha
+        if user:
+            if verificar_senha(body.senha, user.senha):
+                logger.info("Login realizado: %s", body.email)
+                return user
+            # Senha incorreta - nem admin consegue fazer fallback
+            raise UnauthorizedError("E-mail ou senha incorretos")
+
+        # Usuário não existe - permitir fallback apenas para admin
+        if body.email == settings.ADMIN_EMAIL and body.senha == settings.ADMIN_PASSWORD:
+            user = Usuario(
+                nome="Administrador",
+                email=settings.ADMIN_EMAIL,
+                senha=hash_senha(settings.ADMIN_PASSWORD),
+                is_superuser=True,
+                ativo=True,
+            )
+            try:
                 self.usuarios.add(user)
                 self.db.commit()
                 self.db.refresh(user)
-                logger.info("Admin criado automaticamente via login fallback: %s", body.email)
+                logger.info("Admin criado automaticamente: %s", body.email)
                 return user
-            raise UnauthorizedError("E-mail ou senha incorretos")
+            except Exception as e:
+                self.db.rollback()
+                logger.error("Erro ao criar admin: %s", str(e))
+                raise UnauthorizedError("Erro ao processar login") from e
 
-        if not verificar_senha(body.senha, user.senha):
-            if body.email == settings.ADMIN_EMAIL and body.senha == settings.ADMIN_PASSWORD:
-                user.senha = hash_senha(settings.ADMIN_PASSWORD)
-                user.is_superuser = True
-                user.ativo = True
-                self.db.commit()
-                logger.info("Admin sincronizado automaticamente via login fallback: %s", body.email)
-                return user
-            raise UnauthorizedError("E-mail ou senha incorretos")
-
-        logger.info("Login realizado: %s", body.email)
-        return user
+        raise UnauthorizedError("E-mail ou senha incorretos")
 
     def emitir_tokens(self, user: Usuario) -> TokenBundle:
         access_token = criar_access_token(user.id)
