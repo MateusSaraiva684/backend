@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -42,8 +43,12 @@ class AuthService:
             raise BadRequestError("Senha deve ter no minimo 6 caracteres")
 
         usuario = Usuario(nome=body.nome, email=body.email, senha=hash_senha(body.senha))
-        self.usuarios.add(usuario)
-        self.db.commit()
+        try:
+            self.usuarios.add(usuario)
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise BadRequestError("E-mail já cadastrado") from exc
         logger.info("Novo usuario registrado: %s", body.email)
 
     def autenticar(self, body: LoginRequest) -> Usuario:
@@ -82,13 +87,7 @@ class AuthService:
     def emitir_tokens(self, user: Usuario) -> TokenBundle:
         access_token = criar_access_token(user.id)
         refresh_token = criar_refresh_token()
-        rt = RefreshToken(
-            token=refresh_token,
-            user_id=user.id,
-            expira_em=datetime.now(timezone.utc)
-            + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
-        )
-        self.refresh_tokens.add(rt)
+        self.refresh_tokens.add(self._novo_refresh_token(refresh_token, user.id))
         self.db.commit()
         return TokenBundle(
             access_token=access_token,
@@ -105,15 +104,23 @@ class AuthService:
         if not rt or not rt.valido:
             raise UnauthorizedError("Refresh token invalido ou expirado")
 
-        rt.revogado = True
-        self.db.commit()
-
         user = rt.usuario
         if not user.ativo:
             raise UnauthorizedError("Usuario inativo")
 
+        access_token = criar_access_token(user.id)
+        refresh_token = criar_refresh_token()
+        rt.revogado = True
+        self.refresh_tokens.add(self._novo_refresh_token(refresh_token, user.id))
+        self.db.commit()
+
         logger.info("Token renovado para usuario id=%d", user.id)
-        return self.emitir_tokens(user)
+        return TokenBundle(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            usuario=user,
+        )
 
     def revogar_refresh_token(self, token: str | None) -> None:
         if not token:
@@ -134,3 +141,11 @@ class AuthService:
         if not user:
             raise UnauthorizedError("Usuario nao encontrado")
         return user
+
+    def _novo_refresh_token(self, token: str, user_id: int) -> RefreshToken:
+        return RefreshToken(
+            token=token,
+            user_id=user_id,
+            expira_em=datetime.now(timezone.utc)
+            + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        )

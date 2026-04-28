@@ -96,6 +96,7 @@ class AlunoService:
         foto: UploadFile | None = None,
     ) -> Aluno:
         numero_inscricao = self._normalizar_numero_inscricao(numero_inscricao)
+        foto_url = None
         
         try:
             foto_url = salvar_foto(foto) if foto else None
@@ -120,6 +121,7 @@ class AlunoService:
             return aluno
         except IntegrityError as e:
             self.db.rollback()
+            deletar_foto_cloudinary(foto_url)
             # Detecta violação de constraint UNIQUE (SQLite, PostgreSQL)
             if "alunos.user_id, alunos.numero_inscricao" in str(e) or "uq_alunos_user_numero_inscricao" in str(e):
                 logger.warning("Numero inscricao duplicado para usuario id=%d: %s", user.id, numero_inscricao)
@@ -128,6 +130,7 @@ class AlunoService:
             raise BadRequestError("Erro ao criar aluno: dados inválidos")
         except Exception as e:
             self.db.rollback()
+            deletar_foto_cloudinary(foto_url)
             logger.error("Erro ao criar aluno: %s", str(e))
             raise
 
@@ -155,25 +158,28 @@ class AlunoService:
     ) -> Aluno:
         aluno = self.buscar(user, aluno_id)
         numero_inscricao = self._normalizar_numero_inscricao(numero_inscricao)
+        foto_antiga = aluno.foto
+        nova_url = salvar_foto(foto) if foto else None
 
         aluno.nome = nome
         aluno.numero_inscricao = numero_inscricao
         aluno.telefone = telefone
         aluno.turma = turma.strip() or None
 
-        nova_url = salvar_foto(foto)
         if nova_url:
-            deletar_foto_cloudinary(aluno.foto)
             aluno.foto = nova_url
 
         try:
             self.db.flush()  # Força constraint check do UNIQUE
             self.db.commit()
             self.db.refresh(aluno)
+            if nova_url:
+                deletar_foto_cloudinary(foto_antiga)
             logger.info("Aluno atualizado: id=%d", aluno_id)
             return aluno
         except IntegrityError as e:
             self.db.rollback()
+            deletar_foto_cloudinary(nova_url)
             # Detecta violação de constraint UNIQUE (SQLite, PostgreSQL)
             if "alunos.user_id, alunos.numero_inscricao" in str(e) or "uq_alunos_user_numero_inscricao" in str(e):
                 logger.warning("Numero inscricao duplicado na atualização: %s", numero_inscricao)
@@ -182,23 +188,26 @@ class AlunoService:
             raise BadRequestError("Erro ao atualizar aluno: dados inválidos")
         except Exception as e:
             self.db.rollback()
+            deletar_foto_cloudinary(nova_url)
             logger.error("Erro ao atualizar aluno: %s", str(e))
             raise
 
     def deletar(self, user: Usuario, aluno_id: int) -> None:
         aluno = self.buscar(user, aluno_id)
-        deletar_foto_cloudinary(aluno.foto)
+        foto_url = aluno.foto
         self.alunos.delete(aluno)
         self.db.commit()
+        deletar_foto_cloudinary(foto_url)
         logger.info("Aluno deletado: id=%d por usuario id=%d", aluno_id, user.id)
 
     def deletar_admin(self, admin: Usuario, aluno_id: int) -> None:
         aluno = self.alunos.get(aluno_id)
         if not aluno:
             raise NotFoundError("Aluno nao encontrado")
-        deletar_foto_cloudinary(aluno.foto)
+        foto_url = aluno.foto
         self.alunos.delete(aluno)
         self.db.commit()
+        deletar_foto_cloudinary(foto_url)
         logger.info("Aluno id=%d deletado pelo admin id=%d", aluno_id, admin.id)
 
     def _normalizar_numero_inscricao(self, numero_inscricao: str) -> str:

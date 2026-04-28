@@ -33,8 +33,6 @@ def reset_admin():
         
         # Computa novo hash
         novo_hash = hash_senha(settings.ADMIN_PASSWORD)
-        hash_antigo = admin.senha
-        
         # Atualiza
         admin.senha = novo_hash
         admin.is_superuser = True
@@ -46,8 +44,6 @@ def reset_admin():
         logger.info("Admin sincronizado com sucesso!")
         logger.info(f"   Email: {settings.ADMIN_EMAIL}")
         logger.info(f"   Superuser: True")
-        logger.info(f"   Hash antigo: {hash_antigo[:20]}...")
-        logger.info(f"   Hash novo:  {novo_hash[:20]}...")
         logger.info("\nAgora voce pode fazer login com:")
         logger.info(f"   Email: {settings.ADMIN_EMAIL}")
         logger.info("   Senha: use o valor configurado em ADMIN_PASSWORD")

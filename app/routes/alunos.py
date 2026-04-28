@@ -1,12 +1,14 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
 from app.models.models import Usuario
 from app.routes.auth import get_current_user
-from app.schemas.schemas import AlunoResponse
+from app.schemas.schemas import AlunoCreate, AlunoResponse, AlunoUpdate, PaginadoResponse
 from app.services.aluno_service import AlunoService
 
 router = APIRouter()
@@ -14,6 +16,13 @@ router = APIRouter()
 
 def get_aluno_service(db: Session = Depends(get_db)) -> AlunoService:
     return AlunoService(db)
+
+
+def _validar_aluno_form(schema_cls, **dados):
+    try:
+        return schema_cls(**dados)
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
 
 
 @router.get("/turmas", response_model=List[str])
@@ -24,7 +33,7 @@ def listar_turmas(
     return service.listar_turmas(user)
 
 
-@router.get("/", response_model=dict)
+@router.get("/", response_model=PaginadoResponse)
 def listar(
     turma: Optional[str] = None,
     busca: Optional[str] = None,
@@ -54,12 +63,19 @@ def criar(
     user: Usuario = Depends(get_current_user),
     service: AlunoService = Depends(get_aluno_service),
 ):
-    return service.criar(
-        user=user,
+    payload = _validar_aluno_form(
+        AlunoCreate,
         nome=nome,
         numero_inscricao=numero_inscricao,
         telefone=telefone,
         turma=turma,
+    )
+    return service.criar(
+        user=user,
+        nome=payload.nome,
+        numero_inscricao=payload.numero_inscricao,
+        telefone=payload.telefone,
+        turma=payload.turma or "",
         foto=foto,
     )
 
@@ -84,13 +100,20 @@ def atualizar(
     user: Usuario = Depends(get_current_user),
     service: AlunoService = Depends(get_aluno_service),
 ):
-    return service.atualizar(
-        user=user,
-        aluno_id=aluno_id,
+    payload = _validar_aluno_form(
+        AlunoUpdate,
         nome=nome,
         numero_inscricao=numero_inscricao,
         telefone=telefone,
         turma=turma,
+    )
+    return service.atualizar(
+        user=user,
+        aluno_id=aluno_id,
+        nome=payload.nome,
+        numero_inscricao=payload.numero_inscricao,
+        telefone=payload.telefone,
+        turma=payload.turma or "",
         foto=foto,
     )
 

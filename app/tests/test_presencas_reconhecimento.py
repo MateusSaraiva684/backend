@@ -87,3 +87,20 @@ def test_reconhecimento_facial_exige_imagem(client, usuario_e_token):
     )
 
     assert resp.status_code == 400
+
+
+def test_reconhecimento_facial_rejeita_imagem_muito_grande(
+    client,
+    usuario_e_token,
+    monkeypatch,
+):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "MAX_IMAGE_UPLOAD_BYTES", 4)
+    resp = client.post(
+        "/api/reconhecimento/facial",
+        headers={**headers(usuario_e_token), "content-type": "image/jpeg"},
+        content=b"12345",
+    )
+
+    assert resp.status_code == 400

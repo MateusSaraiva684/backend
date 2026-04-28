@@ -2,22 +2,25 @@
 
 import logging
 from datetime import datetime, timedelta
+from threading import Lock
 from typing import Dict, Tuple
 from collections import defaultdict
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 # Rate limit store: {ip:endpoint: [timestamps...]}
 # Usando defaultdict para evitar KeyError
 rate_limit_store: Dict[str, list] = defaultdict(list)
+rate_limit_lock = Lock()
 
 
 def get_client_ip(request: Request) -> str:
     """Extrai IP do cliente da request."""
-    # Verificar header X-Forwarded-For (para proxies/load balancers)
-    if "x-forwarded-for" in request.headers:
+    if settings.TRUST_PROXY_HEADERS and "x-forwarded-for" in request.headers:
         return request.headers["x-forwarded-for"].split(",")[0].strip()
     # Fallback para client.host
     return request.client.host if request.client else "unknown"
@@ -29,40 +32,33 @@ def check_rate_limit(
     max_requests: int = 5,
     window_seconds: int = 60,
 ) -> Tuple[bool, int]:
-    """
-    Verifica se o IP excedeu o rate limit.
-    
-    Args:
-        ip: IP do cliente
-        endpoint: Endpoint sendo acessado
-        max_requests: Máximo de requisições permitidas
-        window_seconds: Janela de tempo em segundos
-        
-    Returns:
-        (allowed, remaining) onde allowed é True se a requisição é permitida
-    """
     now = datetime.now()
     key = f"{ip}:{endpoint}"
-    
-    # Limpar requisições antigas (fora da janela)
     cutoff_time = now - timedelta(seconds=window_seconds)
-    rate_limit_store[key] = [
-        timestamp for timestamp in rate_limit_store[key]
-        if timestamp > cutoff_time
-    ]
-    
-    # Verificar se excedeu limite
-    current_count = len(rate_limit_store[key])
-    
-    if current_count >= max_requests:
-        logger.warning(f"Rate limit excedido: IP {ip} em {endpoint} - {current_count}/{max_requests}")
-        return False, 0
-    
-    # Adicionar timestamp atual
-    rate_limit_store[key].append(now)
-    
-    # Retornar requisições restantes
-    remaining = max_requests - len(rate_limit_store[key])
+
+    with rate_limit_lock:
+        for store_key, timestamps in list(rate_limit_store.items()):
+            recentes = [timestamp for timestamp in timestamps if timestamp > cutoff_time]
+            if recentes:
+                rate_limit_store[store_key] = recentes
+            else:
+                del rate_limit_store[store_key]
+
+        current_count = len(rate_limit_store[key])
+
+        if current_count >= max_requests:
+            logger.warning(
+                "Rate limit excedido: IP %s em %s - %d/%d",
+                ip,
+                endpoint,
+                current_count,
+                max_requests,
+            )
+            return False, 0
+
+        rate_limit_store[key].append(now)
+        remaining = max_requests - len(rate_limit_store[key])
+
     return True, remaining
 
 

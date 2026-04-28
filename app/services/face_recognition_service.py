@@ -65,9 +65,12 @@ class FaceRecognitionService:
             raise AppError(502, "Resposta invalida do servico de reconhecimento facial") from exc
 
         try:
+            confianca = float(data["confianca"])
+            if not 0 <= confianca <= 1:
+                raise ValueError("confianca fora da faixa esperada")
             return FaceRecognitionResult(
                 aluno_id=int(data["aluno_id"]),
-                confianca=float(data["confianca"]),
+                confianca=confianca,
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise AppError(502, "Resposta invalida do servico de reconhecimento facial") from exc

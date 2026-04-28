@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ForbiddenError
@@ -77,8 +77,8 @@ def deletar_usuario(
 
 @router.get("/alunos")
 def listar_todos_alunos(
-    page: int = 1,
-    limit: int = 50,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
     _: Usuario = Depends(get_superuser),
     service: AdminService = Depends(get_admin_service),
 ):
@@ -88,8 +88,6 @@ def listar_todos_alunos(
         page: Número da página (padrão: 1)
         limit: Registros por página (padrão: 50, máximo: 100)
     """
-    limit = min(limit, 100)  # Limitar a 100 registros por página
-    page = max(page, 1)  # Garantir que page é >= 1
     return service.listar_todos_alunos(page=page, limit=limit)
 
 

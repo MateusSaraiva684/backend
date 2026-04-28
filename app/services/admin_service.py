@@ -32,6 +32,7 @@ class AdminService:
         }
 
     def listar_usuarios(self) -> list[dict]:
+        totais_alunos = self.alunos.count_by_user_map()
         return [
             {
                 "id": u.id,
@@ -40,7 +41,7 @@ class AdminService:
                 "ativo": u.ativo,
                 "is_superuser": u.is_superuser,
                 "criado_em": u.criado_em,
-                "total_alunos": self.alunos.count_by_user(u.id),
+                "total_alunos": totais_alunos.get(u.id, 0),
             }
             for u in self.usuarios.list_all()
         ]
@@ -97,12 +98,14 @@ class AdminService:
         if usuario.is_superuser:
             raise ForbiddenError("Nao e possivel remover um superusuario")
 
-        alunos_do_usuario = self.alunos.list_by_user(usuario_id)
-        for aluno in alunos_do_usuario:
-            deletar_foto_cloudinary(aluno.foto)
+        fotos_para_deletar = [
+            aluno.foto for aluno in self.alunos.list_all_by_user(usuario_id) if aluno.foto
+        ]
 
         self.usuarios.delete(usuario)
         self.db.commit()
+        for foto in fotos_para_deletar:
+            deletar_foto_cloudinary(foto)
         logger.info("Usuario id=%d deletado pelo admin id=%d", usuario_id, admin.id)
         return {"mensagem": "Usuario removido com sucesso"}
 

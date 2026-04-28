@@ -1,5 +1,6 @@
 import os
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -18,11 +19,19 @@ from app.routes import admin, alunos, auth, presencas, reconhecimento
 configurar_logging()
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    startup()
+    yield
+
+
 app = FastAPI(
     title="Sistema Escolar API",
     version="2.0.0",
     docs_url="/docs" if not settings.is_production else None,
     redoc_url=None,
+    lifespan=lifespan,
 )
 
 origins = ["http://localhost:5173", "http://localhost:3000"]
@@ -75,7 +84,6 @@ async def generic_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"erro": "Erro interno do servidor"})
 
 
-@app.on_event("startup")
 def startup():
     """Inicializa a aplicacao e sincroniza o admin automaticamente."""
     logger.info("Aplicacao iniciada - ambiente: %s", settings.ENVIRONMENT)

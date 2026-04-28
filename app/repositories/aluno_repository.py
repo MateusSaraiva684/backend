@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.models import Aluno, Usuario
@@ -75,6 +76,9 @@ class AlunoRepository:
         )
         return [r.turma for r in resultado]
 
+    def list_all_by_user(self, user_id: int) -> list[Aluno]:
+        return self.db.query(Aluno).filter(Aluno.user_id == user_id).all()
+
     def get(self, aluno_id: int) -> Aluno | None:
         return self.db.query(Aluno).filter(Aluno.id == aluno_id).first()
 
@@ -86,6 +90,14 @@ class AlunoRepository:
 
     def count_by_user(self, user_id: int) -> int:
         return self.db.query(Aluno).filter(Aluno.user_id == user_id).count()
+
+    def count_by_user_map(self) -> dict[int, int]:
+        resultado = (
+            self.db.query(Aluno.user_id, func.count(Aluno.id))
+            .group_by(Aluno.user_id)
+            .all()
+        )
+        return {user_id: total for user_id, total in resultado}
 
     def numero_inscricao_exists(
         self,

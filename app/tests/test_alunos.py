@@ -32,6 +32,15 @@ def test_criar_aluno(client, usuario_e_token):
     assert data["foto"] is None
 
 
+def test_criar_aluno_rejeita_campos_em_branco(client, usuario_e_token):
+    resp = client.post(
+        "/api/alunos/",
+        headers=headers(usuario_e_token),
+        data=aluno_payload(nome="   ", telefone="   "),
+    )
+    assert resp.status_code == 422
+
+
 def test_listar_alunos_apos_criar(client, usuario_e_token):
     client.post(
         "/api/alunos/",
@@ -77,6 +86,20 @@ def test_atualizar_aluno(client, usuario_e_token):
     assert resp.status_code == 200
     assert resp.json()["nome"] == "Ana Souza"
     assert resp.json()["numero_inscricao"] == "2026-0099"
+
+
+def test_atualizar_aluno_rejeita_campos_em_branco(client, usuario_e_token):
+    criado = client.post(
+        "/api/alunos/",
+        headers=headers(usuario_e_token),
+        data=aluno_payload(nome="Ana"),
+    ).json()
+    resp = client.put(
+        f"/api/alunos/{criado['id']}",
+        headers=headers(usuario_e_token),
+        data=aluno_payload(nome="   "),
+    )
+    assert resp.status_code == 422
 
 
 def test_deletar_aluno(client, usuario_e_token):
